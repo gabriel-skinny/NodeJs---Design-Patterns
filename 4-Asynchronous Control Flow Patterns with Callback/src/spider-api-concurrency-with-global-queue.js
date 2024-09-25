@@ -3,34 +3,56 @@ import path from "path";
 import superagent from "superagent";
 import mkdirp from "mkdirp";
 import { getPageLinks, urlToFilename } from "./utils.js";
+import TaskQueue from "./taskQueue.js";
 
 const mutualExcludeUrl = new Set();
+let urlsDownloaded = 0;
+let totalSpideredUrls = 0;
 
-export function spider(url, nesting, cb) {
-  const filename = urlToFilename(url);
+export function spider(url, nesting, linksPerNest, queue) {
+  console.log("\n----SPIDER FUNC--------");
 
   if (mutualExcludeUrl.has(url)) {
-    return process.nextTick(cb);
+    console.log("SKIPED URL: " + url);
+    return;
   }
   mutualExcludeUrl.add(url);
 
+  console.log("----TASK PUSHED-----");
+  console.log({ url });
+  queue.pushTask((doneCb) => {
+    spiderTask(url, nesting, linksPerNest, queue, doneCb);
+  });
+}
+
+function spiderTask(url, nesting, linksPerNest, queue, doneTaskCb) {
+  const filename = urlToFilename(url);
+
+  console.log("\n----SPIDER TASK FUNC----");
+  console.log({ url, filename });
+
+  totalSpideredUrls++;
   fs.readFile(filename, "utf-8", (err, fileContent) => {
     if (err) {
       if (err.code !== "ENOENT") {
-        return cb(err);
+        return doneTaskCb(err);
       }
 
-      return dowloadFromUrl(url, filename, (err, requestContent) => {
+      return dowloadFromUrl(url, filename, (err, fileText) => {
         if (err) {
-          return cb(err);
+          return doneTaskCb(err);
         }
 
-        mutualExcludeUrl.delete(url);
-        spiderLinks(url, requestContent, nesting, cb);
+        urlsDownloaded++;
+        spiderLinks(url, fileText, nesting, linksPerNest, queue);
+
+        doneTaskCb(null, urlsDownloaded, totalSpideredUrls);
       });
     }
 
-    spiderLinks(url, fileContent, nesting, cb);
+    spiderLinks(url, fileContent, nesting, linksPerNest, queue);
+
+    doneTaskCb(null, urlsDownloaded, totalSpideredUrls);
   });
 }
 
@@ -40,7 +62,8 @@ function dowloadFromUrl(url, filename, cb) {
 
     saveFile(filename, res, (err, filename) => {
       if (err) return cb(err);
-      cb(null, filename);
+      if (!res.text) return cb(new Error("Text does not exists"));
+      cb(null, res.text);
     });
   });
 }
@@ -55,47 +78,29 @@ function saveFile(filename, res, cb) {
       if (err) {
         return cb(err);
       }
-      cb(null, filename, true);
+      cb(null, filename);
     });
   });
 }
 
-function spiderLinks(currentUrl, body, nesting, cb) {
+function spiderLinks(currentUrl, body, nesting, linksPerNest, queue) {
   if (nesting === 0) {
-    return process.nextTick(cb);
+    return;
   }
 
   const links = getPageLinks(currentUrl, body);
-  if (links.length === 0) {
-    return process.nextTick(cb);
+  const linksFormated = links.slice(0, linksPerNest);
+
+  console.log({ linksFormated, currentUrl, nesting });
+
+  if (linksFormated.length === 0) {
+    return;
   }
 
-  let hasErrors = false;
-  let parallelLimit = 2;
-  let running = 0;
-  let taskIndex = 0;
-
-  function run() {
-    while (running < parallelLimit && taskIndex < links.length) {
-      const link = links[taskIndex];
-
-      spider(link, nesting - 1, (err) => {
-        if (err) {
-          hasErrors = true;
-          return cb(err);
-        }
-
-        running--;
-        taskIndex++;
-
-        if (taskIndex == links.length) {
-          return cb();
-        }
-
-        run();
-      });
-
-      running++;
-    }
+  for (const link of linksFormated) {
+    console.log("\nLINK TO SPIDER\n", { baseUrl: currentUrl, link });
+    spider(link, nesting - 1, linksPerNest, queue);
   }
+
+  console.log("LINKS SENT TO SPIDER!");
 }
