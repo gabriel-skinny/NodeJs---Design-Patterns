@@ -6,7 +6,7 @@ import { getPageLinks, urlToFilename } from "./utils.js";
 
 const mutualExcludeUrl = new Set();
 
-export function spider(url, nesting, cb) {
+export function spider(url, nesting, linksPerNest, cb) {
   const filename = urlToFilename(url);
 
   if (mutualExcludeUrl.has(url)) {
@@ -14,23 +14,32 @@ export function spider(url, nesting, cb) {
   }
   mutualExcludeUrl.add(url);
 
+  console.log({ url, filename });
+
   fs.readFile(filename, "utf-8", (err, fileContent) => {
     if (err) {
       if (err.code !== "ENOENT") {
         return cb(err);
       }
 
-      return dowloadFromUrl(url, filename, (err, requestContent) => {
+      return dowloadFromUrl(url, filename, (err, fileText) => {
         if (err) {
           return cb(err);
         }
 
-        mutualExcludeUrl.delete(url);
-        spiderLinks(url, requestContent, nesting, cb);
+        spiderLinks(url, fileText, nesting, linksPerNest, (err) => {
+          if (err) return cb(err);
+
+          cb(null, url, true);
+        });
       });
     }
 
-    spiderLinks(url, fileContent, nesting, cb);
+    spiderLinks(url, fileContent, nesting, linksPerNest, (err) => {
+      if (err) return cb(err);
+
+      cb(null, url, false);
+    });
   });
 }
 
@@ -40,7 +49,8 @@ function dowloadFromUrl(url, filename, cb) {
 
     saveFile(filename, res, (err, filename) => {
       if (err) return cb(err);
-      cb(null, filename);
+      if (!res.text) return cb(new Error("Text does not exists"));
+      cb(null, res.text);
     });
   });
 }
@@ -55,33 +65,37 @@ function saveFile(filename, res, cb) {
       if (err) {
         return cb(err);
       }
-      cb(null, filename, true);
+      cb(null, filename);
     });
   });
 }
 
-function spiderLinks(currentUrl, body, nesting, cb) {
+function spiderLinks(currentUrl, body, nesting, linksPerNest, cb) {
   if (nesting === 0) {
     return process.nextTick(cb);
   }
 
   const links = getPageLinks(currentUrl, body);
-  if (links.length === 0) {
+  const linksFormated = links.slice(0, linksPerNest);
+
+  console.log({ linksFormated, currentUrl });
+
+  if (linksFormated.length === 0) {
     return process.nextTick(cb);
   }
 
   let executedCount = 0;
   let hasErrors = false;
 
-  for (const link of links) {
-    spider(link, nesting - 1, (err) => {
+  for (const link of linksFormated) {
+    spider(link, nesting - 1, linksPerNest, (err) => {
       if (err) {
         hasErrors = true;
         return cb(err);
       }
 
       executedCount++;
-      if (executedCount === links.length && !hasErrors) {
+      if (executedCount === linksFormated.length && !hasErrors) {
         return cb();
       }
     });
