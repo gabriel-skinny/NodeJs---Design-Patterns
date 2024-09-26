@@ -2,7 +2,7 @@ const myPromise = new Promise((resolve, reject) => {
   console.log("Criando Promise");
   resolve(10);
 });
-console.log({ myPromise });
+myPromise.console.log({ myPromise });
 
 myPromise
   .then((value) => {
