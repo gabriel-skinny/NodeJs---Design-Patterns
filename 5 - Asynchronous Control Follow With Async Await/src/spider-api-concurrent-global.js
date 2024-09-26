@@ -12,7 +12,7 @@ const mkdirpPromisse = promisify(mkdirp);
 let spideredUrls = 0;
 let downloadedFiles = 0;
 
-export function spider(url, nesting, linksPerNest) {
+export function spider(url, nesting, linksPerNest, queue) {
   return new Promise((resolve, reject) => {
     const filename = urlToFilename(url);
 
@@ -29,7 +29,7 @@ export function spider(url, nesting, linksPerNest) {
         return dowloadFromUrl(url, filename);
       })
       .then((fileContent) => {
-        return spiderLinks(url, fileContent, nesting, linksPerNest);
+        return spiderLinks(url, fileContent, nesting, linksPerNest, queue);
       })
       .then(() => {
         console.log(`Resolved spidered for url: ${url}`);
@@ -57,7 +57,7 @@ function dowloadFromUrl(url, filename) {
     });
 }
 
-function spiderLinks(currentUrl, body, nesting, linksPerNest) {
+function spiderLinks(currentUrl, body, nesting, linksPerNest, queue) {
   let promise = Promise.resolve();
 
   console.log("\n-----SPIDER LINKS------");
@@ -75,14 +75,14 @@ function spiderLinks(currentUrl, body, nesting, linksPerNest) {
     return promise;
   }
 
-  for (const link of filtredLinks) {
-    promise = promise.then(() => {
-      console.log(`Promised resolved, calling spider with: ${link}`);
-      return spider(link, nesting - 1, linksPerNest);
+  let promiseTasks;
+  filtredLinks.forEach((link) => {
+    promiseTasks = queue.pushTask(() => {
+      return spider(link, nesting - 1, linksPerNest, queue);
     });
-  }
+  });
 
   console.log("All links promissed!");
 
-  return promise;
+  return promiseTasks;
 }

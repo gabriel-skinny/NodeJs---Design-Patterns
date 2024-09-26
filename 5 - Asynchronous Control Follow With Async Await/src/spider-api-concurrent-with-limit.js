@@ -75,13 +75,18 @@ function spiderLinks(currentUrl, body, nesting, linksPerNest) {
     return promise;
   }
 
+  const promissesToExecute = [];
+  const limitedParalel = 2;
   for (const link of filtredLinks) {
-    promise = promise.then(() => {
-      console.log(`Promised resolved, calling spider with: ${link}`);
-      return spider(link, nesting - 1, linksPerNest);
-    });
-  }
+    promissesToExecute.push(spider(link, nesting - 1, linksPerNest));
 
+    if (promissesToExecute.length == limitedParalel) {
+      promise = promise.then(() => {
+        console.log("Doble promisses resolved");
+        return Promise.all(promissesToExecute.splice(0, limitedParalel));
+      });
+    }
+  }
   console.log("All links promissed!");
 
   return promise;

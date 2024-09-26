@@ -58,13 +58,11 @@ function dowloadFromUrl(url, filename) {
 }
 
 function spiderLinks(currentUrl, body, nesting, linksPerNest) {
-  let promise = Promise.resolve();
-
   console.log("\n-----SPIDER LINKS------");
   console.log({ url: currentUrl, nesting, linksPerNest });
 
   if (nesting === 0) {
-    return promise;
+    return Promise.resolve();
   }
 
   const links = getPageLinks(currentUrl, body);
@@ -72,17 +70,14 @@ function spiderLinks(currentUrl, body, nesting, linksPerNest) {
 
   console.log({ baseUrl: currentUrl, filtredLinks });
   if (filtredLinks.length === 0) {
-    return promise;
+    return Promise.resolve();
   }
 
+  const promissesToExecute = [];
   for (const link of filtredLinks) {
-    promise = promise.then(() => {
-      console.log(`Promised resolved, calling spider with: ${link}`);
-      return spider(link, nesting - 1, linksPerNest);
-    });
+    promissesToExecute.push(spider(link, nesting - 1, linksPerNest));
   }
-
   console.log("All links promissed!");
 
-  return promise;
+  return Promise.all(promissesToExecute);
 }

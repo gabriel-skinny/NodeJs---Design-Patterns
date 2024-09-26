@@ -1,26 +1,38 @@
+import { TaskPromiseQueue } from "./taskPromiseQueue.js";
+
 const url = process.argv[2];
 const nesting = Number.parseInt(process.argv[3], 10) || 1;
 const runningMode = process.argv[4] || "non-concurrency";
 const linksPerNest = Number.parseInt(process.argv[5]) || 1;
+const concurrencyTaskQueueLevel = Number.parseInt(process.argv[6]) || 2;
 
 let spider;
 
 switch (runningMode) {
   case "non-concurrency": {
     let { spider: spiderFunc } = await import(
-      "./spider-api-sequential-promise"
+      "./spider-api-sequential-promise.js"
     );
     spider = spiderFunc;
     break;
   }
   case "concurrency-unlimited": {
-    let { spider: spiderFunc } = await import("./spider-api-concurrency.js");
+    let { spider: spiderFunc } = await import(
+      "./spider-api-concurrent-promise.js"
+    );
     spider = spiderFunc;
     break;
   }
   case "concurrency-limited": {
     let { spider: spiderFunc } = await import(
-      "./spider-api-concurrency-with-limit.js"
+      "./spider-api-concurrent-with-limit.js"
+    );
+    spider = spiderFunc;
+    break;
+  }
+  case "concurrency-with-global-queue": {
+    let { spider: spiderFunc } = await import(
+      "./spider-api-concurrent-global.js"
     );
     spider = spiderFunc;
     break;
@@ -33,14 +45,20 @@ switch (runningMode) {
 console.log("START: " + Date.now());
 const start = Date.now();
 
-spider(url, nesting, linksPerNest)
-  .then((totalSpideredUrls, urlsDownloaded) => {
+let taskQueue;
+
+if (runningMode == "concurrency-with-global-queue") {
+  taskQueue = new TaskPromiseQueue(concurrencyTaskQueueLevel);
+}
+
+spider(url, nesting, linksPerNest, taskQueue)
+  .then(({ spideredUrls, downloadedFiles }) => {
     console.log("\n-----SUCESS SPIDERED -----");
     console.log(
       `With arguments "Nesting: ${nesting}", LinksPerNest: ${linksPerNest}`
     );
     console.log(
-      `Downloaded ${urlsDownloaded} files and spidered ${totalSpideredUrls}`
+      `Downloaded ${downloadedFiles} files and spidered ${spideredUrls}`
     );
   })
   .catch((err) => {
