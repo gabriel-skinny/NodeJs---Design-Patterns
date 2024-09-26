@@ -29,3 +29,13 @@ console.log("Thens adicionados");
 
 const promise2 = Promise.resolve(10);
 promise2.then((value) => console.log(`Value resolved ${value}`));
+
+function syncPromise() {
+  return new Promise((resolve, reject) => {
+    console.log("Sync promise body");
+    resolve(10);
+  });
+}
+
+syncPromise().then((data) => console.log(`Sync promise value: ${data}`));
+console.log("Promisse sync");
