@@ -10,3 +10,5 @@ Beneficios de Promise:
 - Transforma todas as promises em funções asyncs que saem de execução da thread principal, garantindo a asincronicidade de todas as funções e mitigando surpresas em suas chamadas
 
 Duck Typing: Uma técnica de tipagem de objeto que o define baseado no seu comportamento exterior. Promises são definidas por ter seu método then.
+
+Async/Await: Cada declaração de await em uma função async faz com que a execução da função fique em pausa e saia do event-loop, e assim que o resultado é resolvido pela promise esperada, ela terá sua variavel preenchida na proxima execução do event-loop. O maior beneficio de usar a sintaxe de async/await é poder lidar com erros usando try/catch
